@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Abiturnoten-Rechner Rheinland-Pfalz</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 1rem; background: #131313; color: #e0e0e0; }
+    h1, h2 { color: #dfdfdf; }
+    .block { background: rgb(72, 72, 72); padding: 1rem; margin-bottom: 1rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .fachauswahl, .fach-container { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .fachauswahl label, .fach { border: 1px solid #ccc; border-radius: 6px; padding: 0.5rem; background:  rgb(72, 72, 72); font-size: 0.85rem; }
+    .fach { width: calc(25% - 1rem); }
+    .fach label { display: block; margin-top: 0.25rem; }
+    .fach input[type="number"] { width: 3.5rem; padding: 0.25rem; }
+    .fach select { width: 4rem; padding: 0.25rem; }
+    .summary { font-weight: bold; font-size: 1.2rem; margin-top: 1rem;}
+    .error { color: red; font-weight: bold; white-space: pre-wrap; margin-top: 1rem;}
+    .button-row button { margin-right: 0.5rem; }
+    .pruefungsfach-eintrag { margin-bottom: 0.5rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background:  rgb(72, 72, 72); }
+    input { color:#fff  ;background: #2a2a2a;}
+    /* GROßER Button für Aktualisieren */
+    .big-update-btn {
+      display: block;
+      width: 100%;
+      padding: 1em 0;
+      font-size: 1.0em;
+      font-weight: bold;
+      background: #1267c2;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      margin-bottom: 1em;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .big-update-btn:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <h1>Abiturnoten-Rechner Rheinland-Pfalz (bis 2026)</h1>
+
+  <div class="block" id="auswahlBlock">
+    <h2>Fächerwahl</h2>
+    <div class="fachauswahl" id="fachauswahl"></div>
+    <button onclick="weiterZurEingabe()">Weiter zur Eingabe</button>
+  </div>
+
+  <div class="block" id="block1" style="display:none">
+    <h2>Block I – Qualifikationsphase</h2>
+    <div class="fach-container" id="faecherListe"></div>
+    <div>
+      <label>Facharbeit:
+        <input type="number" id="facharbeitPunkte" min="0" max="15" placeholder="0-15" onchange="update()" />
+        <input type="checkbox" id="facharbeitEingebracht" onchange="update()" /> eingebracht?
+      </label>
+    </div>
+    <div class="summary" id="block1Ergebnis"></div>
+  </div>
+
+  <div class="block" id="block2" style="display:none">
+    <h2>Block II – Prüfungsbereich</h2>
+    <div id="pruefungsListe"></div>
+    <div class="summary" id="block2Ergebnis"></div>
+  </div>
+
+  <div class="block" id="gesamtblock" style="display:none">
+    <h2>Gesamtergebnis</h2>
+    <button class="big-update-btn" onclick="update()">Aktualisieren</button>
+    <div class="summary" id="gesamtErgebnis"></div>
+    <div class="error" id="fehlerOutput"></div>
+  </div>
+
+  <div class="block button-row">
+    <button onclick="speichern()">Als JSON speichern</button>
+    <button onclick="dokumentLaden()">JSON laden</button>
+    <input type="file" id="dateiImport" style="display:none" onchange="jsonImport(event)" />
+    <button onclick="zuruecksetzen()">Zurücksetzen</button>
+  </div>
+
+<script>
+const faecher = ["Biologie", "Chemie", "Darstellendes Spiel", "Deutsch", "Englisch", "Erdkunde", "Geschichte", "Informatik", "Kunst", "Latein", "Mathematik", "Musik", "Physik", "Religion", "Sozialkunde", "Spanisch", "Sport"];
+let ausgewaehlteFaecher = [];
+
+function init() {
+  const auswahl = document.getElementById("fachauswahl");
+  faecher.forEach(fach => {
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="checkbox" value="${fach}"> ${fach}`;
+    auswahl.appendChild(label);
+  });
+}
+window.onload = init;
+
+function weiterZurEingabe() {
+  ausgewaehlteFaecher = Array.from(document.querySelectorAll('#fachauswahl input:checked')).map(cb => cb.value);
+  if (ausgewaehlteFaecher.length === 0) return alert("Bitte mindestens ein Fach auswählen.");
+
+  document.getElementById("auswahlBlock").style.display = "none";
+  document.getElementById("block1").style.display = "block";
+  document.getElementById("block2").style.display = "block";
+  document.getElementById("gesamtblock").style.display = "block";
+
+  const liste = document.getElementById("faecherListe");
+  const pruefListe = document.getElementById("pruefungsListe");
+  liste.innerHTML = '';
+  pruefListe.innerHTML = '';
+
+  ausgewaehlteFaecher.forEach(fach => {
+    // Block I Einträge
+    const el = document.createElement("div");
+    el.className = "fach";
+    el.innerHTML = `
+      <strong>${fach}</strong>
+      <label>Kursart:
+        <select onchange="update()" data-fach="${fach}" data-type="kursart">
+          <option value="GK">GK</option>
+          <option value="LK">LK</option>
+        </select>
+      </label>
+      <label>Q1 <input type="number" min="0" max="15" data-fach="${fach}" data-type="Q1" onchange="update()" /></label>
+      <label>Q2 <input type="number" min="0" max="15" data-fach="${fach}" data-type="Q2" onchange="update()" /></label>
+      <label>Q3 <input type="number" min="0" max="15" data-fach="${fach}" data-type="Q3" onchange="update()" /></label>
+      <label>Q4 <input type="number" min="0" max="15" data-fach="${fach}" data-type="Q4" onchange="update()" /></label>
+      <label><input type="checkbox" data-fach="${fach}" data-type="pruefungsfach" onchange="togglePruefungsfach('${fach}', this.checked)" /> Prüfungsfach</label>
+    `;
+    liste.appendChild(el);
+  });
+  update();
+}
+
+function togglePruefungsfach(fach, aktiviert) {
+  const pruefListe = document.getElementById("pruefungsListe");
+  const id = `pruefung-${fach}`;
+  const vorhanden = document.getElementById(id);
+
+  // Begrenzung auf max. 5 Prüfungsfächer (korrigiert!)
+  const aktuellPruef = document.querySelectorAll('#pruefungsListe .pruefungsfach-eintrag').length;
+  if (aktiviert && aktuellPruef >= 5) {
+    alert("Es können maximal 5 Prüfungsfächer ausgewählt werden.");
+    document.querySelector(`input[data-fach="${fach}"][data-type="pruefungsfach"]`).checked = false;
+    return;
+  }
+
+  if (aktiviert && !vorhanden) {
+    const feld = document.createElement("div");
+    feld.id = id;
+    feld.className = "pruefungsfach-eintrag";
+    feld.innerHTML = `
+      <strong>${fach}</strong>
+      <label>Art:
+        <select data-pruefung-art="${fach}" onchange="update()">
+          <option value="schriftlich">schriftlich</option>
+          <option value="muendlich">mündlich</option>
+        </select>
+      </label>
+      <label>Punkte:
+        <input type="number" min="0" max="15" data-pruefung-punkte="${fach}" onchange="update()" />
+      </label>
+    `;
+    pruefListe.appendChild(feld);
+  } else if (!aktiviert && vorhanden) {
+    vorhanden.remove();
+  }
+  update();
+}
+
+function berechneNote(punkte) {
+  // Notenskala laut Vorgabe
+  const notenskala = [
+    { min: 823, max: 900, note: "1,0" },
+    { min: 805, max: 822, note: "1,1" },
+    { min: 787, max: 804, note: "1,2" },
+    { min: 769, max: 786, note: "1,3" },
+    { min: 751, max: 768, note: "1,4" },
+    { min: 733, max: 750, note: "1,5" },
+    { min: 715, max: 732, note: "1,6" },
+    { min: 697, max: 714, note: "1,7" },
+    { min: 679, max: 696, note: "1,8" },
+    { min: 661, max: 678, note: "1,9" },
+    { min: 643, max: 660, note: "2,0" },
+    { min: 625, max: 642, note: "2,1" },
+    { min: 607, max: 624, note: "2,2" },
+    { min: 589, max: 606, note: "2,3" },
+    { min: 571, max: 588, note: "2,4" },
+    { min: 553, max: 570, note: "2,5" },
+    { min: 535, max: 552, note: "2,6" },
+    { min: 517, max: 534, note: "2,7" },
+    { min: 499, max: 516, note: "2,8" },
+    { min: 481, max: 498, note: "2,9" },
+    { min: 463, max: 480, note: "3,0" },
+    { min: 445, max: 462, note: "3,1" },
+    { min: 427, max: 444, note: "3,2" },
+    { min: 409, max: 426, note: "3,3" },
+    { min: 391, max: 408, note: "3,4" },
+    { min: 373, max: 390, note: "3,5" },
+    { min: 355, max: 372, note: "3,6" },
+    { min: 337, max: 354, note: "3,7" },
+    { min: 319, max: 336, note: "3,8" },
+    { min: 301, max: 318, note: "3,9" }
+  ];
+  for (const bereich of notenskala) {
+    if (punkte >= bereich.min && punkte <= bereich.max) {
+      return bereich.note;
+    }
+  }
+  return "nicht bestanden";
+}
+
+function update() {
+  const inputs = document.querySelectorAll(".fach input, .fach select");
+  const kursDaten = {};
+  inputs.forEach(el => {
+    const fach = el.dataset.fach;
+    if (!fach) return;
+    if (!kursDaten[fach]) kursDaten[fach] = { punkte: {}, kursart: 'GK' };
+    if (el.dataset.type === 'kursart') kursDaten[fach].kursart = el.value;
+    if (["Q1", "Q2", "Q3", "Q4"].includes(el.dataset.type)) {
+      const val = parseInt(el.value);
+      kursDaten[fach].punkte[el.dataset.type] = isNaN(val) ? null : val;
+    }
+  });
+
+  // Pflichtfächer prüfen & Punkte sammeln
+  let gesamt = 0;
+  let unterkurse = 0;
+  let sportKurse = 0;
+  let fehlermeldung = "";
+
+  // LK-Berechnung: Alle LKs
+  let lkFaecher = Object.entries(kursDaten).filter(([_, d]) => d.kursart === "LK");
+  let lkPunkteArray = lkFaecher.map(([f, d]) => {
+    let punkte = ["Q1","Q2","Q3","Q4"].map(q => d.punkte[q]).filter(p => p !== null);
+    return { fach: f, punkte: punkte };
+  });
+
+  // LK-Summen berechnen
+  let lkSummen = lkPunkteArray.map(lk => ({
+    fach: lk.fach,
+    summe: lk.punkte.reduce((a,b) => a + b, 0),
+    anzahl: lk.punkte.length
+  }));
+
+  // Die beiden besten LKs doppelt, der schlechteste einfach
+  let lkSortiert = [...lkSummen].sort((a,b) => b.summe - a.summe);
+  let lkDoppelt = lkSortiert.slice(0,2).map(lk => lk.fach);
+  let lkEinfach = lkSortiert.length > 2 ? lkSortiert[2].fach : null;
+
+  // Pflichtbereiche tracken
+  let pflichtErfuellt = {
+    deutsch: false,
+    mathe: false,
+    fremdsprache: false,
+    naturwissenschaft: false,
+    gesellschaft: false,
+    kunst: false,
+    informatikOderZweiteFS: false
+  };
+
+  Object.entries(kursDaten).forEach(([fach, daten]) => {
+    let punkteArray = ["Q1","Q2","Q3","Q4"].map(q => daten.punkte[q]).filter(p => p !== null);
+    if (punkteArray.length >= 4) {
+      if (fach === "Deutsch") pflichtErfuellt.deutsch = true;
+      if (fach === "Mathematik") pflichtErfuellt.mathe = true;
+      if (["Englisch", "Latein", "Spanisch"].includes(fach)) pflichtErfuellt.fremdsprache = true;
+      if (["Biologie", "Chemie", "Physik"].includes(fach)) pflichtErfuellt.naturwissenschaft = true;
+      if (["Geschichte", "Erdkunde", "Sozialkunde"].includes(fach)) pflichtErfuellt.gesellschaft = true;
+    }
+    if (["Musik", "Kunst", "Darstellendes Spiel"].includes(fach)) {
+      if (punkteArray.length >= 2) pflichtErfuellt.kunst = true;
+    }
+    if (["Informatik", "Latein", "Spanisch"].includes(fach)) {
+      if (punkteArray.length >= 1) pflichtErfuellt.informatikOderZweiteFS = true;
+    }
+    if (fach === "Sport") sportKurse += punkteArray.length;
+
+    punkteArray.forEach(p => {
+      if (p === 0) fehlermeldung += `Kurs mit 0 Punkten in ${fach} darf nicht eingebracht werden.\n`;
+      if (p < 5) unterkurse++;
+      // LK doppelt, außer schlechtester LK
+      let faktor = 1;
+      if (daten.kursart === "LK") {
+        if (lkDoppelt.includes(fach)) faktor = 2;
+        if (lkEinfach === fach) faktor = 1;
+      }
+      gesamt += p * faktor;
+    });
+  });
+
+  // Facharbeit als eigenständige Punktzahl addieren
+  let facharbeitPunkte = parseInt(document.getElementById("facharbeitPunkte").value);
+  const facharbeitEingebracht = document.getElementById("facharbeitEingebracht").checked;
+  if (facharbeitEingebracht) {
+    if (isNaN(facharbeitPunkte) || facharbeitPunkte < 0 || facharbeitPunkte > 15) {
+      fehlermeldung += "Facharbeit: Punkte müssen zwischen 0 und 15 liegen.\n";
+    } else {
+      gesamt += facharbeitPunkte;
+    }
+  }
+
+  if (unterkurse > 7) fehlermeldung += `Zu viele Unterkurse: ${unterkurse}\n`;
+  if (sportKurse > 3) fehlermeldung += `Maximal 3 Sportkurse erlaubt, aktuell: ${sportKurse}\n`;
+
+  Object.entries(pflichtErfuellt).forEach(([bereich, ok]) => {
+    if (!ok) fehlermeldung += `Pflichtbereich nicht erfüllt: ${bereich}\n`;
+  });
+
+  // Block I: Gewichtung 40/44
+  let block1Gewichtet = Math.round(gesamt * (40/44) * 100) / 100;
+  document.getElementById("block1Ergebnis").textContent = `Block I Punkte (gewichtet): ${block1Gewichtet}`;
+
+  // Block II Prüfungsfächer auslesen
+  let block2Summe = 0;
+  let pruefungsfehler = "";
+  const pruefungsFaecher = document.querySelectorAll("#pruefungsListe .pruefungsfach-eintrag");
+  if (pruefungsFaecher.length < 4 || pruefungsFaecher.length > 5) {
+    pruefungsfehler += "Es müssen 4 oder 5 Prüfungsfächer ausgewählt werden.\n";
+  }
+
+  // Multiplikator bestimmen
+  let block2Multiplikator = 0;
+  if (pruefungsFaecher.length === 4) block2Multiplikator = 5;
+  else if (pruefungsFaecher.length === 5) block2Multiplikator = 4;
+
+  pruefungsFaecher.forEach(div => {
+    const fach = div.querySelector("strong").textContent;
+    const punkteInput = div.querySelector("input[type=number]");
+    const punkte = parseInt(punkteInput.value);
+    if (isNaN(punkte) || punkte < 0 || punkte > 15) {
+      pruefungsfehler += `Ungültige Punkte bei Prüfungsfach ${fach}\n`;
+    } else {
+      block2Summe += punkte * block2Multiplikator;
+    }
+  });
+  document.getElementById("block2Ergebnis").textContent = `Block II Punkte: ${block2Summe} (Multiplikator: ${block2Multiplikator})`;
+
+  if (pruefungsfehler) fehlermeldung += pruefungsfehler;
+
+  // Gesamt
+  const gesamtPunkte = block1Gewichtet + block2Summe;
+  const note = berechneNote(gesamtPunkte);
+
+  document.getElementById("gesamtErgebnis").innerHTML = `
+    <p>Block I gewichtet: <strong>${block1Gewichtet}</strong> Punkte</p>
+    <p>Block II: <strong>${block2Summe}</strong> Punkte (Multiplikator: ${block2Multiplikator})</p>
+    <p><strong>Gesamt: ${gesamtPunkte} Punkte → Note ${note}</strong></p>
+  `;
+
+  document.getElementById("fehlerOutput").textContent = fehlermeldung || "Keine Fehler erkannt.";
+
+  return fehlermeldung === "";
+}
+
+function speichern() {
+  const daten = {
+    faecher: ausgewaehlteFaecher,
+    block1: {},
+    block2: [],
+    facharbeit: {
+      punkte: document.getElementById("facharbeitPunkte").value,
+      eingebracht: document.getElementById("facharbeitEingebracht").checked
+    }
+  };
+
+  ausgewaehlteFaecher.forEach(fach => {
+    const kursart = document.querySelector(`select[data-fach="${fach}"][data-type="kursart"]`).value;
+    const punkte = {};
+    ["Q1", "Q2", "Q3", "Q4"].forEach(q => {
+      const val = document.querySelector(`input[data-fach="${fach}"][data-type="${q}"]`).value;
+      punkte[q] = val;
+    });
+    const pruefungsfach = document.querySelector(`input[data-fach="${fach}"][data-type="pruefungsfach"]`).checked;
+    daten.block1[fach] = { kursart, punkte, pruefungsfach };
+  });
+
+  const pruefungsFaecher = document.querySelectorAll("#pruefungsListe .pruefungsfach-eintrag");
+  pruefungsFaecher.forEach(div => {
+    const fach = div.querySelector("strong").textContent;
+    const art = div.querySelector("select").value;
+    const punkte = div.querySelector("input[type=number]").value;
+    daten.block2.push({ fach, art, punkte });
+  });
+
+  // Download als JSON-Datei
+  const blob = new Blob([JSON.stringify(daten, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "abirechner.json";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 0);
+}
+
+function dokumentLaden() {
+  document.getElementById("dateiImport").click();
+}
+
+function jsonImport(event) {
+  const datei = event.target.files[0];
+  if (!datei) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const daten = JSON.parse(e.target.result);
+      ausJsonLaden(daten);
+    } catch (err) {
+      alert("Fehler beim Import: " + err);
+    }
+  };
+  reader.readAsText(datei);
+}
+
+function ausJsonLaden(daten) {
+  ausgewaehlteFaecher = daten.faecher;
+
+  document.getElementById("auswahlBlock").style.display = "none";
+  document.getElementById("block1").style.display = "block";
+  document.getElementById("block2").style.display = "block";
+  document.getElementById("gesamtblock").style.display = "block";
+  const faecherListe = document.getElementById("faecherListe");
+  faecherListe.innerHTML = "";
+  const pruefungsListe = document.getElementById("pruefungsListe");
+  pruefungsListe.innerHTML = "";
+
+  ausgewaehlteFaecher.forEach(fach => {
+    const el = document.createElement("div");
+    el.className = "fach";
+    el.innerHTML = `
+      <strong>${fach}</strong>
+      <label>Kursart:
+        <select data-fach="${fach}" data-type="kursart" onchange="update()">
+          <option value="GK">GK</option>
+          <option value="LK">LK</option>
+        </select>
+      </label>
+      <label>Q1 <input type="number" min="0" max="15" data-fach="${fach}" data-type="Q1" /></label>
+      <label>Q2 <input type="number" min="0" max="15" data-fach="${fach}" data-type="Q2" /></label>
+      <label>Q3 <input type="number" min="0" max="15" data-fach="${fach}" data-type="Q3" /></label>
+      <label>Q4 <input type="number" min="0" max="15" data-fach="${fach}" data-type="Q4" /></label>
+      <label><input type="checkbox" data-fach="${fach}" data-type="pruefungsfach" /> Prüfungsfach</label>
+    `;
+    faecherListe.appendChild(el);
+
+    if (daten.block1[fach]) {
+      const d = daten.block1[fach];
+      el.querySelector(`select[data-type="kursart"]`).value = d.kursart;
+      ["Q1","Q2","Q3","Q4"].forEach(q => {
+        el.querySelector(`input[data-type="${q}"]`).value = d.punkte[q] || "";
+      });
+      const cb = el.querySelector(`input[type="checkbox"][data-type="pruefungsfach"]`);
+      cb.checked = d.pruefungsfach;
+      if (cb.checked) togglePruefungsfach(fach, true);
+    }
+  });
+
+  // Facharbeit
+  if (daten.facharbeit) {
+    document.getElementById("facharbeitPunkte").value = daten.facharbeit.punkte || "";
+    document.getElementById("facharbeitEingebracht").checked = daten.facharbeit.eingebracht || false;
+  }
+
+  // Prüfungsfächer
+  if (daten.block2) {
+    daten.block2.forEach(eintrag => {
+      const fach = eintrag.fach;
+      const cb = document.querySelector(`input[data-fach="${fach}"][data-type="pruefungsfach"]`);
+      if (cb && !cb.checked) {
+        cb.checked = true;
+        togglePruefungsfach(fach, true);
+      }
+      // Nach dem TogglePruefungsfach ist das Feld im DOM!
+      const pruefDiv = document.getElementById(`pruefung-${fach}`);
+      if (pruefDiv) {
+        pruefDiv.querySelector("select").value = eintrag.art;
+        pruefDiv.querySelector("input[type=number]").value = eintrag.punkte;
+      }
+    });
+  }
+
+  update();
+  alert("Daten geladen.");
+}
+
+function zuruecksetzen() {
+  location.reload();
+}
+</script>
+</body>
+</html>
