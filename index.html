@@ -89,7 +89,7 @@
   </div>
 
 <script>
-const faecher = ["Biologie", "Chemie", "Darstellendes Spiel", "Deutsch", "Englisch", "Erdkunde", "Geschichte", "Informatik", "Kunst", "Latein", "Mathematik", "Musik", "Physik", "Religion", "Sozialkunde", "Spanisch", "Sport"];
+const faecher = ["Biologie", "Chemie", "Darstellendes Spiel", "Deutsch", "Englisch", "Erdkunde", "Französisch", "Geschichte", "Informatik", "Kunst", "Latein", "Mathematik", "Musik", "Physik", "Religion", "Sozialkunde", "Spanisch", "Sport"];
 let ausgewaehlteFaecher = [];
 
 function init() {
@@ -272,14 +272,14 @@ function update() {
     if (punkteArray.length >= 4) {
       if (fach === "Deutsch") pflichtErfuellt.deutsch = true;
       if (fach === "Mathematik") pflichtErfuellt.mathe = true;
-      if (["Englisch", "Latein", "Spanisch"].includes(fach)) pflichtErfuellt.fremdsprache = true;
+      if (["Englisch", "Latein", "Spanisch","Französisch"].includes(fach)) pflichtErfuellt.fremdsprache = true;
       if (["Biologie", "Chemie", "Physik"].includes(fach)) pflichtErfuellt.naturwissenschaft = true;
       if (["Geschichte", "Erdkunde", "Sozialkunde"].includes(fach)) pflichtErfuellt.gesellschaft = true;
     }
     if (["Musik", "Kunst", "Darstellendes Spiel"].includes(fach)) {
       if (punkteArray.length >= 2) pflichtErfuellt.kunst = true;
     }
-    if (["Informatik", "Latein", "Spanisch"].includes(fach)) {
+    if (["Informatik", "Latein", "Spanisch", "Französisch"].includes(fach)) {
       if (punkteArray.length >= 1) pflichtErfuellt.informatikOderZweiteFS = true;
     }
     if (fach === "Sport") sportKurse += punkteArray.length;
