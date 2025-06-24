@@ -37,6 +37,14 @@
     .big-update-btn:hover {
       background: #0056b3;
     }
+    .note-box {
+      display: inline-block;
+      padding: 4px 8px;
+      border: 1px solid #ffffff;
+      background-color: #f0f0f000;
+      font-weight: bold;
+      font-size: 1.5em;
+    }
   </style>
 </head>
 <body>
@@ -345,7 +353,8 @@ function update() {
   document.getElementById("gesamtErgebnis").innerHTML = `
     <p>Block I gewichtet: <strong>${block1Gewichtet}</strong> Punkte</p>
     <p>Block II: <strong>${block2Summe}</strong> Punkte (Multiplikator: ${block2Multiplikator})</p>
-    <p><strong>Gesamt: ${gesamtPunkte} Punkte → Note ${note}</strong></p>
+    <p><strong>Gesamt: ${Math.floor(gesamtPunkte)} Punkte → <span class="note-box">Note ${note}</span></strong></p>
+    
   `;
 
   document.getElementById("fehlerOutput").textContent = fehlermeldung || "Keine Fehler erkannt.";
